@@ -6,7 +6,7 @@ from django.utils import simplejson as json
 from google.appengine.ext import webapp
 from google.appengine.ext.webapp import util
 
-SERVICE_KEY = "6f4d18600a9b012f6a9722000a9040cf"
+SERVICE_KEY = "SZhrUsp4qsJwrZ7wAPhe"
 
 #Half of the code is just dedicated to URL shortening, so that we can fit the MP3's URL in an SMS:
 def shorten(url):
@@ -30,7 +30,7 @@ class CallHandler(webapp.RequestHandler):
   def get(self):
     response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
       "<Response><Say>Leave a message at the beep.</Say>"
-      "<Record action=\"http://pdtestthrough.appspot.com/record\" method=\"GET\"/>"
+      "<Record action=\"http://pagerdutyinboundcalls.appspot.com/record\" method=\"GET\"/>"
       "<Say>I did not receive a recording</Say></Response>")
     self.response.out.write(response)
     logging.info('Recieved CALL ' + self.request.query_string)
@@ -47,9 +47,9 @@ class RecordHandler(webapp.RequestHandler):
     logging.info('Recieved RECORDING ' + recUrl)
     if(recUrl):
       logging.info('Found recording!')
-      recUrl = recUrl + '.mp3' #There's better support for URLs that include the .mp3
+      recUrl = recUrl + '.mp3' # There's better support for URLs that include the .mp3
     else:
-      recUrl = "https://github.com/eurica/PagerDutyCallDesk/" # I don't know what I should do with incidents that don't include an MP3
+      recUrl = "https://github.com/GoBoundless/PagerDutyCallDesk/" # I don't know what I should do with incidents that don't include an MP3
       phonenumber = ""
     shrten = "Error"
     
@@ -67,7 +67,7 @@ class RecordHandler(webapp.RequestHandler):
     # Obviously use your own key:
     incident = '{"service_key": "%s","incident_key": "%s","event_type": "trigger","description": "%s %s"}'%(SERVICE_KEY,shrten,shrten,phonenumber)
     try:
-      r = Request("http://events.pagerduty.com/generic/2010-04-15/create_event.json", incident) #Note according to the API this should be retried on failure
+      r = Request("https://events.pagerduty.com/generic/2010-04-15/create_event.json", incident) #Note according to the API this should be retried on failure
       results = urlopen(r)
       logging.info(incident)
       logging.info(results)

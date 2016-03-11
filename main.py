@@ -1,44 +1,24 @@
-# PagerDuty incidents triggered by phone: 
+import json
 import logging
 from urllib2 import Request, urlopen, URLError, HTTPError
 import urllib
-from django.utils import simplejson as json
 from google.appengine.ext import webapp
 from google.appengine.ext.webapp import util
 
 SERVICE_KEY = "d1768578cf9c445b8c3105e0578bd7ef"
 
-#Half of the code is just dedicated to URL shortening, so that we can fit the MP3's URL in an SMS:
-def shorten(url):
-    gurl = 'http://goo.gl/api/url?url=%s' % urllib.unquote(url)
-    req = Request(gurl, data='')
-    req.add_header('User-Agent', 'toolbar')
-    logging.info('Shortening ' + gurl)
-    try:
-      res = urlopen(req)
-      results = json.load(res)
-      logging.info( res.code )
-    except HTTPError, e: #triggers on HTTP code 201
-      logging.info( e.code )
-      error_content = e.read() 
-      results = json.JSONDecoder().decode(error_content)
-      
-    return results['short_url']
-
-# Outbput the TwilML to record a message and pass it to /record
 class CallHandler(webapp.RequestHandler):
   def get(self):
     response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-      "<Response><Say>Leave a message at the beep.</Say>"
+      "<Response><Say>Thank you for contacting the  Boundless emergency support hotline. Leave a message at the beep.</Say>"
       "<Record action=\"http://pagerdutyinboundcalls.appspot.com/record\" method=\"GET\"/>"
       "<Say>I did not receive a recording</Say></Response>")
     self.response.out.write(response)
     logging.info('Recieved CALL ' + self.request.query_string)
 
-# Shorten the URL and trigger a PD incident with it
 class RecordHandler(webapp.RequestHandler):
   def get(self):
-    response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Say>Thanks.  Directing your message to the agent on call.</Say></Response>")
+    response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Say>Directing your message to the agent on call.</Say></Response>")
     self.response.out.write(response)
     logging.info('Recieved RECORDING: ' + self.request.query_string)
     recUrl = self.request.get("RecordingUrl")
@@ -49,25 +29,28 @@ class RecordHandler(webapp.RequestHandler):
       logging.info('Found recording!')
       recUrl = recUrl + '.mp3' # There's better support for URLs that include the .mp3
     else:
-      recUrl = "https://github.com/GoBoundless/PagerDutyCallDesk/" # I don't know what I should do with incidents that don't include an MP3
+      recUrl = ""
       phonenumber = ""
-    shrten = "Error"
-    
-    try:
-      shrten = shorten(recUrl)
-    except HTTPError, e:
-      shrten = "HTTPError"
-      logging.warn( e.code )
-    except URLError, e:
-      shrten = "URLError"
-      logging.warn(e.reason) 
-    
-    logging.info('Shortened to: ' + shrten)
-  
+
     # Obviously use your own key:
-    incident = '{"service_key": "%s","incident_key": "%s","event_type": "trigger","description": "%s %s"}'%(SERVICE_KEY,shrten,shrten,phonenumber)
+    incident = {
+      'service_key': SERVICE_KEY,
+      'event_type': 'trigger',
+      'incident_key': phonenumber,
+      'description': "Incoming call from %s"%(phonenumber),
+      'client_url': 'https://pagerdutyinboundcalls.appspot.com/',
+      'details': self.request.arguments(),
+      'contents': [
+        {
+          'type': 'link',
+          'href': recUrl,
+          'text': 'Message'
+        }
+      ]
+    }
+
     try:
-      r = Request("https://events.pagerduty.com/generic/2010-04-15/create_event.json", incident) #Note according to the API this should be retried on failure
+      r = Request("https://events.pagerduty.com/generic/2010-04-15/create_event.json", json.dumps(incident, indent=4))
       results = urlopen(r)
       logging.info(incident)
       logging.info(results)

@@ -14,6 +14,9 @@ def details(request):
     result[param] = request.get(param)
   return result
 
+def caller_identity(request):
+  "%s (%s)"%(request.get("Caller"), request.get("CallerName"))
+
 def create_event(event):
   try:
     r = Request("https://events.pagerduty.com/generic/2010-04-15/create_event.json", json.dumps(event))
@@ -57,8 +60,8 @@ class RecordHandler(webapp.RequestHandler):
         'service_key': SERVICE_KEY,
         'event_type': 'trigger',
         'incident_key': self.request.get("RecordingSid"),
-        'description': "Incoming call from %s"%(self.request.get("Caller")),
-        'client': self.request.get("From"),
+        'description': "Incoming call from %s"%(caller_identity(self.request)),
+        'client': caller_identity(self.request),
         'client_url': recUrl,
         'details': details(self.request),
         'contents': [
@@ -80,7 +83,7 @@ class TranscribeHandler(webapp.RequestHandler):
       'event_type': 'trigger',
       'incident_key': self.request.get("RecordingSid"),
       'description': self.request.get("TranscriptionText"),
-      'client': self.request.get("From"),
+      'client': caller_identity(self.request),
       'details': details(self.request),
     })
 
